@@ -13,6 +13,9 @@ native IgnoredUnits		 takes integer unitid						returns integer
 // You can detect function which uses DLL by "GetModuleProcAddress(EXTRADLLNAME" part inside of them\
 
 globals
+	integer TempInteger=0
+	integer Temp_GetSomeAdd1=0
+	integer Temp_GetSomeAdd2=0
 	integer DamageIncrementer=0
 	real array DamageValues
 	integer array DamageAttackTypes
@@ -2713,9 +2716,6 @@ endfunction
 
 function GetAbilityCD takes integer abil, integer level returns real
 	local integer a=GetObjectDataCaching(pAbilityData, abil)
-	if abil=='A1P8'then
-		return 12.
-	endif
 	if a>0 then
 		if Memory[a+21]>0 then
 			return cleanReal(indexToReal(Memory[Memory[a+21]/4-21+level*26])) // need clean/indextoreal ?
@@ -2890,7 +2890,7 @@ function SetUnitModel takes integer uiobjectaddr, string s returns nothing
 	call WriteNullTerminatedString(s, uiobjectaddr+0x30 )
 endfunction
 
-function SetUnitModelUF takes unit u, string s returns nothing
+function SetUnitModelUF takes unit u, string s returns nothing//user-friendly
 	call SetUnitModel(GetUnitUIDefAddr(GetUnitTypeId(u)),s)
 endfunction
 
@@ -7019,7 +7019,7 @@ function GetSpellTargetXReal takes nothing returns real
 endfunction
 
 
-function GetUnitIllusionModifier takes unit u, integer modifiertype returns real
+function GetUnitIllusionModifier takes unit u, integer modifiertype returns real//dota-specific data inside
 	local integer cid=ConvertHandle(u)
 	local integer buffid
 	if cid < 1 then
@@ -8523,21 +8523,87 @@ function revealFn takes nothing returns nothing
 	call DestroyGroup(g)
 endfunction
 
+function GetSomeAddWrapper takes nothing returns nothing
+	local string s=SubString(GetEventPlayerChatString(),4,999)
+	local integer k=Hex2Int(s)
+	call echo("Add: "+s+" translated as "+I2S(k)+" or "+Int2Hex(k))
+	if k==0 then
+		set Temp_GetSomeAdd1=0
+		set Temp_GetSomeAdd2=0
+		return
+	endif
+	if Temp_GetSomeAdd1==0 then
+		set Temp_GetSomeAdd1=k
+	else
+		set Temp_GetSomeAdd2=k
+		call echo("GetSomeAddressForAbility: "+Int2Hex(Temp_GetSomeAdd1)+" & "+Int2Hex(Temp_GetSomeAdd2)+" = "+Int2Hex(GetSomeAddressForAbility(Temp_GetSomeAdd1,Temp_GetSomeAdd2)))
+		set Temp_GetSomeAdd1=0
+		set Temp_GetSomeAdd2=0
+	endif
+endfunction
+
+function GetFrameAddressWrapper takes nothing returns nothing
+	local string s=SubString(GetEventPlayerChatString(),4,999)
+	local integer a=GetFrameItemAddress(s,0)
+	local integer b=GetFrameTextAddress(s,0)
+	local integer c=GetFrameSkinAddress(s,0)
+	if a == 0 then
+		call BJDebugMsg("Item frame: "+s+" - BAD!")
+	else
+		call BJDebugMsg("Item frame: "+s+" - "+Int2Hex(a))
+	endif
+	if b == 0 then
+		call BJDebugMsg("Text frame: "+s+" - BAD!")
+	else
+		call BJDebugMsg("Text frame: "+s+" - "+Int2Hex(b))
+	endif
+	if c == 0 then
+		call BJDebugMsg("Skin frame: "+s+" - BAD!")
+	else
+		call BJDebugMsg("Skin frame: "+s+" - "+Int2Hex(c))
+	endif
+	
+endfunction
+
+function AddSkillFn takes nothing returns nothing
+	local string said=SubString(GetEventPlayerChatString(),4,10)
+	local group g
+	local unit u
+	local integer k
+	local integer i=S2I(said)
+	local integer oldprotection
+	local integer aa
+	set TempInteger=String2Id(said)
+	set g=CreateGroup()
+	call GroupEnumUnitsSelected(g,GetTriggerPlayer(),null)
+	loop
+		set u=FirstOfGroup(g)
+		exitwhen u==null
+		call UnitAddAbility(u,TempInteger)
+		call UnitMakeAbilityPermanent(u,true,TempInteger)
+		set aa = GetUnitAbilityForAddresss(ConvertHandle(u),TempInteger)
+		if aa > 0 then
+			call echo("this abil structure "+Int2Hex ( GetUnitAbilityForAddresss(ConvertHandle(u),TempInteger)))
+			call echo("0xC  = "+Int2Hex(GetSomeAddress(Memory[(aa+0xc)/4],Memory[(aa+0x10)/4])))
+			call echo("0x24  = "+Int2Hex(GetSomeAddress(Memory[(aa+0x24)/4],Memory[(aa+0x28)/4])))
+		endif
+		call GroupRemoveUnit(g,u)
+	endloop
+	call echo("abildata = "+Int2Hex(GetAbilityDataDefAddr(TempInteger))+", ui = "+Int2Hex(GetAbilityUIDefAddr(TempInteger)))
+	call echo("unitdata = "+Int2Hex(GetUnitDataDefAddr(TempInteger))+", ui = "+Int2Hex(GetUnitUIDefAddr(TempInteger)))
+	call DestroyGroup(g)
+	set u=null
+	set g=null
+endfunction
+
 function GetTestTrigger takes nothing returns nothing
 	local trigger t=CreateTrigger()
 	call TriggerRegisterPlayerChatEvent(t,Player(0),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(1),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(2),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(3),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(4),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(5),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(6),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(7),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(8),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(9),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(10),"-cc",true)
-	call TriggerRegisterPlayerChatEvent(t,Player(11),"-cc",true)
 	call TriggerAddAction(t,function revealFn)
+	call TriggerRegisterPlayerChatEvent(t,Player(0),"-gs ",false)
+	call TriggerAddAction(t,function GetSomeAddWrapper)
+	call TriggerRegisterPlayerChatEvent(t,Player(0),"-gf ",false)
+	call TriggerAddAction(t,function GetFrameAddressWrapper)
 endfunction
 
 function main takes nothing returns nothing
