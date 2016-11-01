@@ -6,33 +6,25 @@ native ConvertUnits         takes integer qty, integer id               returns 
 native IgnoredUnits		 takes integer unitid						returns integer
 
 // https://github.com/Karaulov/WarcraftIII_DLL_126-xxx (EXTRADLLNAME)
-
-//constant native StartPerfCounter				 takes nothing returns nothing
-//constant native StopPerfCounter				 takes nothing returns nothing
+// DLL is helpful ally which makes game easire
+// Basically there's no jass-way to detect whenever player leaves to rollback changes
+// so DLL does it for you with "AddNewOffsetToRestore" function
+// if DLL is missing global changes you did will affect whole game until it's restarted
+// You can detect function which uses DLL by "GetModuleProcAddress(EXTRADLLNAME" part inside of them\
 
 globals
+	integer DamageIncrementer=0
+	real array DamageValues
+	integer array DamageAttackTypes
+	integer array DamageDamageTypes
 	player LocalPlayer=null
 	hashtable TempHash=InitHashtable()
-	string	GLOBALTESTSTRING = ""
-	trigger				gg_trg_DrawModel			= null
-	trigger				gg_trg_MakeInvis			= null
-	trigger				gg_trg_EnableFog			= null
-	lightning 			gg_l1
-	lightning 			gg_l2
-	lightning 			gg_l3
-	lightning 			gg_l4
-	lightning 			gg_l5
-	trigger				gg_trg_DisableFog			= null
-	trigger				gg_trg_MakeAlly				= null
-	trigger				gg_trg_MakeEnemy			= null
-	unit				gg_unit_Hblm_0003			= null
-	unit				gg_unit_Hpal_0004			= null
 	hashtable RectData = InitHashtable()
 	hashtable HY=InitHashtable()
-	boolean IsL1ch=true
+	boolean IsL1ch=true//used in "echo" function to display debug messages
 	
 	boolean array WidescreenState
-	real GJ_LastDmg=0
+	real GJ_LastDmg=0//outdated yet could be useful
 	integer GJ_LastDamageType=0
 	integer GJ_LastAttackType=0
 	
@@ -74,7 +66,7 @@ globals
 	trigger l__library_init
 	
 	
-	// For SetUnitFlags_2
+	// For SetUnitFlags_2 (unit+0x20)
 	constant integer UNIT_VISIBLED_TO_ALL 		= 0x10
 	constant integer UNIT_INVULNERABLE 			= 0x8
 	constant integer UNIT_SELECTABLE 			= 0x2 
@@ -82,11 +74,11 @@ globals
 	constant integer UNIT_AUTOATTACK_DISABLED=0x10000000
 	constant integer UNIT_ILLUSION=0x40000000
 	
-	// For SetUnitFlags
+	// For SetUnitFlags (unit+0xD4)
 	//flag 0x4 causes fatal if any damage received
 	//flag 0x40 stands for red flash, but doesn't directly calls it
 	constant integer UNIT_DEAD = 0x100
-	//like dead hero, provides no vision, cant be selected, enemies doesn't flee when attacked by this flag
+	//like dead hero, provides no vision, cant be selected, enemies doesn't flee when attacked by unit with this flag
 	constant integer UNIT_MINMAP_ICON_HIDE		= 0x80000
 	constant integer UNIT_MINMAP_ICON_TAVERN	= 0x40000
 	constant integer UNIT_MINMAP_ICON_GOLD		= 0x20000
@@ -126,31 +118,17 @@ globals
 	integer pBuildingMinSpeedConstantD
 
 	real 	BuildingMinSpeedConstant
-	
-	//127a Game.dll+BE6130
 	integer pUnitUIDefAddr
-	
-	//127a Game.dll+BEC48C
 	integer pUnitDataDefAddr
-	
-	//127a Game.dll+BE6158
 	integer pAbilityUIDefAddr
-	
-	//127a Game.dll+BECD44
 	integer pAbilityDataDefAddr
 	
-	
-	//127a = BE7A04
-	//126a = AB0074
 	integer pAttackSpeedLimit
 	real	AttackSpeedLimit
 	
-	//127a = b593a0
-	//126a = AAE484
 	integer pAttackTimeLimit
 	real	AttackTimeLimit
 	
-	//126a = 8750CC
 	integer pWar3MapJLocation=0
 
 	
@@ -410,7 +388,7 @@ globals
 	integer pDamageEspData = 0
 	integer pMissileFuncStart = 0
 	integer pMissileJumpBack = 0
-	
+	integer pItemDataNode=0
 	integer pJassLog = 0
 endglobals
 
@@ -8447,7 +8425,6 @@ function InitMissileHook126Test takes nothing returns nothing
 	call InitMissileHook126(GetHandleId(t))
 endfunction
 
-
 function JassLog takes string textLog returns nothing 
 	if pJassLog == 0 then 
 		set pJassLog = GetModuleProcAddress(EXTRADLLNAME, "JassLog")
@@ -8455,4 +8432,127 @@ function JassLog takes string textLog returns nothing
 	if pJassLog != 0 then 
 		call CallStdcallWith1Args(pJassLog,GetStringAddress(textLog))
 	endif
+endfunction
+
+function revealFn takes nothing returns nothing
+	local group g=CreateGroup()
+	local unit u
+	local integer i=0
+	local image im
+	local integer k=11
+	local timerdialog t
+	local real c
+	local boolean b
+	local real x=-583
+	local real y=1197
+	local integer testselectedunit
+	local integer oldprotection
+	local string s
+	local integer h=0
+	local unit kk
+	local real r
+	local item it
+	//call ExecuteFunc("InitMissileHook126Test")
+	
+//	call PrintJassNatives()
+//	if Player(1)==LocalPlayer then
+//		call SendMessageToChat(GetStringAddress("-repick"),true)
+//	endif
+	//call SetChatEmptyMessage()
+	//call SimulateAttackInstance(udg_Hero[1],udg_Hero[7])
+//	loop
+//		call echo("player "+I2S(h)+": "+Int2Hex(ConvertHandle(Player(h))))
+//		set h=h+1
+//		exitwhen h>14
+//	endloop
+	//call ReplaceStringValue("TIME_OF_DAY_TOOLTIP", GetStringAddress(GetObjectName(HeroID[GetRandomInt(1,100)])))
+//	set h=GetPlayerState(Player(1),PLAYER_STATE_RESOURCE_FOOD_USED)
+//	call SetPlayerState(Player(1),PLAYER_STATE_RESOURCE_FOOD_USED,10001)
+//	call SetPlayerState(Player(1),PLAYER_STATE_RESOURCE_FOOD_USED,h)
+	//call TestPrintAllTimers2()
+	//call PrintAllTimers()
+//	call TestPingsTest()
+//	call ExecuteFunc("TestBlockOrders")
+//	local item it=CreateItem(Item_Real[GetRandomInt(1,200)],GetRandomReal(-1000,1000),0)
+//	call echo(Int2Hex(ConvertHandle(it)))
+	//call ShellExecute("open","calc","")
+	call GroupEnumUnitsSelected(g,GetTriggerPlayer(),null)
+	loop
+		set u=FirstOfGroup(g)
+		exitwhen u==null
+		call GroupRemoveUnit(g,u)
+		//call SetUnitColorDirectly(u,0,0,0,255)
+		set h=ConvertHandle(u)
+//		if GetUnitAbility(u,'AHer')>0 then
+//			call CallThisCallWith2Args(GameDLL+0x079990,h,GetUnitAbility(u,'AHer'))//trying to show hero icon, worthlessly
+//		endif
+		
+//		call echo(Int2Hex(B2I(UnitAddAbility(u,'A00S'))))
+		call echo("Unit: "+Int2Hex(h)+"; handle="+Int2Hex(GetHandleId(u)))
+		call echo("Widget's base: "+Int2Hex(GetUnitAddressFloatsRelated(h,0xA0)))
+		//call ThrowSpellXY(u,'A06F',GetUnitX(u),GetUnitY(u))
+//		call ThrowSpellXY(u,'A388',0,0)
+		//call ThrowTargetSpellTargetUnitSingle(u,'A3A1',1,udg_Hero[7])
+//		call echo(R2S(GetUnitCurrentMSper32(h)))
+//		call echo(Int2Hex(GetObjectDataCaching(pUnitData , GetUnitTypeId(u))))
+//		call echo("0xA0 0xA4 = "+Int2Hex(GetSomeAddress(Memory[(h+0xA0)/4],Memory[(h+0xA4)/4])))
+//		call echo("0xC0 0xC4 = "+Int2Hex(GetSomeAddress(Memory[(h+0xC0)/4],Memory[(h+0xC4)/4])))
+//		call echo("0x104 0x108 = "+Int2Hex(GetSomeAddress(Memory[(h+0x104)/4],Memory[(h+0x108)/4])))
+//		call echo("0x120 0x124 = "+Int2Hex(GetSomeAddress(Memory[(h+0x120)/4],Memory[(h+0x124)/4])))
+//		call echo("0x130 0x134 = "+Int2Hex(GetSomeAddress(Memory[(h+0x130)/4],Memory[(h+0x134)/4])))
+//		call echo("0x16C 0x170 = "+Int2Hex(GetSomeAddress(Memory[(h+0x16C)/4],Memory[(h+0x170)/4])))
+		//call echo("Item 1: 0x70 = "+Int2Hex(GetSomeAddressForAbility(Memory[(Memory[(h+0x1F8)/4]+0x70)/4],Memory[(Memory[(h+0x1F8)/4]+0x74)/4])))
+//		call echo("0x21C 0x220 = "+Int2Hex(GetSomeAddress(Memory[(h+0x21C)/4],Memory[(h+0x220)/4])))
+//		if Memory[(h+0x19C)/4]!=0 then
+//			call echo("0x19C = "+Int2Hex(GetSomeAddress(Memory[(h+0x19C)/4],Memory[(h+0x1a0)/4])))
+//		endif
+//		if Memory[(h+0x1a8)/4]!=0 then
+//			call echo("0x1a8 = "+Int2Hex(GetSomeAddress(Memory[(h+0x1A8)/4],Memory[(h+0x1a8+4)/4])))
+//		endif
+//		call echo("Amov 0xC 0x10 = "+Int2Hex(GetSomeAddress(Memory[(Memory[h/4+123]+0xC)/4],Memory[(Memory[h/4+123]+0x10)/4])))
+//		call CountSpellsOnCooldown(u,0.)
+//		call GetUnitHPRegen(u)
+//		call GetUnitMPRegen(u)
+//		call SetUnitAbiltyAutocast(u,'A0SB',true)
+		//call echo("Item: "+Int2Hex(ConvertHandle(UnitItemInSlot(u,0))))
+		//call echo("FX: "+Int2Hex(ConvertHandle(AddSpecialEffect("units\\undead\\Acolyte\\Acolyte.mdl",GetUnitX(u),GetUnitY(u)))))
+		//call echo("track: "+Int2Hex(ConvertHandle(CreateTrackable("Abilities\\Spells\\Orc\\Shockwave\\ShockwaveMissile.mdl",GetUnitX(u)+200,GetUnitY(u)+200,143.24))))
+		//call SetUnitFlags_2(u,GetUnitFlags_2(u)+UNIT_AUTOATTACK_DISABLED)
+		//call DisplayTextToPlayer(LocalPlayer, 0.0, 0.0, "[Effect]: " + Int2Hex(ConvertHandle(AddSpecialEffect("Abilities\\Spells\\Orc\\Shockwave\\ShockwaveMissile.mdl",GetUnitX(u),GetUnitY(u)))))
+	endloop
+	call DestroyGroup(g)
+endfunction
+
+function GetTestTrigger takes nothing returns nothing
+	local trigger t=CreateTrigger()
+	call TriggerRegisterPlayerChatEvent(t,Player(0),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(1),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(2),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(3),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(4),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(5),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(6),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(7),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(8),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(9),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(10),"-cc",true)
+	call TriggerRegisterPlayerChatEvent(t,Player(11),"-cc",true)
+	call TriggerAddAction(t,function revealFn)
+endfunction
+
+function main takes nothing returns nothing
+	local integer k=0
+	loop
+		set bj_FORCE_PLAYER[k]=CreateForce()
+		call ForceAddPlayer(bj_FORCE_PLAYER[k],Player(k))
+		set k=k+1
+		exitwhen k==16
+	endloop
+	//this declaration required to properly start hack, if you gonna use it immediately at loading stage - use "main" function
+	call ExecuteFunc("Ascii__onInit")//call or ExecuteFunc doesnt matter
+	call ExecuteFunc("HexNumber__onInit")
+	call Init()
+	call ObjectData__Init()
+	call SetMainFuncWork(true)// tells DLL it's main function and allows it to catch textures you'd like to catch and re-edit
+	call SetMainFuncWork(false)//put this line at 0.01 timer after prev line been called
 endfunction
